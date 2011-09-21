@@ -1,0 +1,180 @@
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is Breakpad Tools
+#
+# The Initial Developer of the Original Code is Mozilla Foundation.
+#
+# Portions created by the Initial Developer are Copyright (C) 2011
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#  Gregory Szorc <gps@mozilla.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisiwons above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
+
+import csv
+from datetime import datetime
+
+class CrashDataParser(object):
+
+    def __init__(self):
+        pass
+
+    def _handle_reader(self, reader):
+        for row in reader:
+            yield CrashData(csv_row_dict=row)
+
+    def parse_handle(self, fh):
+        reader = csv.DictReader(fh, delimiter='\t')
+        return self._handle_reader(reader)
+
+    def parse_file(self, path):
+        with open(path, 'rb') as fh:
+            reader = csv.DictReader(fh, delimiter='\t')
+            return self._handle_reader(reader)
+
+class CrashData(object):
+    __slots__ = [
+        'adu_count',
+        'address',
+        'addons_checked',
+        'app_notes',
+        'branch',
+        'bugs',
+        'build',
+        'cpu_info',
+        'crash_date',
+        'date_processed',
+        'duplicate_of',
+        'flash_version',
+        'hangid',
+        'install_age',
+        'last_crash',
+        'os_version',
+        'os_name',
+        'process_type',
+        'product',
+        'release_channel',
+        'reason',
+        'signature',
+        'topmost_filenames',
+        'uptime',
+        'user_comments',
+        'uuid',
+        'uuid_url',
+        'version',
+    ]
+
+    def __init__(self, csv_row_dict=None):
+        if csv_row_dict is not None:
+            self.from_csv_dict(csv_row_dict)
+
+    def from_csv_dict(self, row):
+        '''Creates a new instance from a parsed CSV row created by DictReader
+
+        This will likely only be called from CrashDataParser.
+        '''
+        for k, v in row.iteritems():
+            if k == '':
+                continue
+            elif k == 'address':
+                self.address = v
+            elif k == 'adu_count':
+                self.adu_count = v
+            elif k == 'addons_checked':
+                self.addons_checked = v
+            elif k == 'app_notes':
+                self.app_notes = v
+            elif k == 'build':
+                self.build = v
+            elif k == 'branch':
+                self.branch = v
+            elif k == 'bug_list':
+                self.bugs = [int(b) for b in v.split(',') if len(b) > 0]
+            elif k == 'client_crash_date':
+                self.crash_date = datetime.strptime(v, '%Y%m%d%H%M')
+            elif k == 'cpu_info':
+                self.cpu_info = v.split(' | ')
+            elif k == 'date_processed':
+                self.date_processed = datetime.strptime(v, '%Y%m%d%H%M')
+            elif k == 'duplicate_of':
+                d = None
+                if v != '\\N':
+                    # TODO convert to UUID
+                    d = v
+                self.duplicate_of = d
+
+            elif k == 'flash_version':
+                self.flash_version = v
+            elif k == 'hangid':
+                self.hangid = v
+            elif k == 'install_age':
+                self.install_age = int(v)
+            elif k == 'last_crash':
+                self.last_crash = v
+            elif k == 'os_name':
+                self.os_name = v
+            elif k == 'os_version':
+                self.os_version = v
+            elif k == 'process_type':
+                self.process_type = v
+            elif k == 'product':
+                self.product = v
+            elif k == 'reason':
+                self.reason = v
+            elif k == 'release_channel':
+                self.release_channel = v
+            elif k == 'signature':
+                self.signature = v.split(' | ')
+            elif k == 'topmost_filenames':
+                self.topmost_filenames = v
+            elif k == 'URL (removed)':
+                continue
+            elif k == 'uptime_seconds':
+                self.uptime = int(v)
+            elif k == 'user_comments':
+                self.user_comments = v
+            elif k == 'uuid_url':
+                self.uuid_url = v
+
+                i = v.find('/report/index/')
+
+                if i != -1:
+                    self.uuid = v[i + len('/report/index/'):]
+
+            elif k == 'version':
+                self.version = v
+
+            else:
+                print 'UNHANDLED KEY: %s' % k
+
+    def has_signature(self, s):
+        '''Returns whether the current crash has the specified signature'''
+        for sig in self.signature:
+            if sig.find(s) != -1:
+                return True
+
+        return False
