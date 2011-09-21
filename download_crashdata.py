@@ -47,6 +47,8 @@ import urllib2
 
 op = OptionParser()
 op.add_option('--base-uri', dest='uri', default='https://crash-analysis.mozilla.com/crash_analysis/')
+op.add_option('--days', '-d', dest='days', default=30, type='int',
+              help='The number of days to fetch')
 
 (options, args) = op.parse_args()
 
@@ -57,7 +59,7 @@ if len(args) != 1:
 outdir = args[0]
 today = date.today()
 
-for i in range(1, 30):
+for i in range(1, options.days):
     d = today - timedelta(i)
     ds = d.strftime('%Y%m%d')
 
