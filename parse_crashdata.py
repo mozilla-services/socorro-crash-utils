@@ -47,7 +47,10 @@
 
 from breakpad.crashdata import CrashDataParser
 from optparse import OptionParser
+from os.path import exists
 from sys import stdin
+
+import gzip
 
 op = OptionParser()
 op.add_option('--signature', '-s', dest='signature', default=None,
@@ -58,6 +61,8 @@ op.add_option('--print-versions', dest='print_versions', default=False,
 
 (options, args) = op.parse_args()
 
+read_files = len(args) > 0
+
 print_uuids = True
 
 if options.print_versions:
@@ -65,8 +70,7 @@ if options.print_versions:
 
 version_counts = {}
 
-parser = CrashDataParser()
-for row in parser.parse_handle(stdin):
+def handle_row(row):
     # filter stage
     relevant = True
 
@@ -75,7 +79,7 @@ for row in parser.parse_handle(stdin):
             relevant = False
 
     if not relevant:
-        continue
+        return
 
     # data collection
     version = row.version
@@ -87,6 +91,26 @@ for row in parser.parse_handle(stdin):
     # individual printing
     if print_uuids:
         print row.uuid
+
+parser = CrashDataParser()
+if not read_files:
+    for row in parser.parse_handle(stdin):
+        handle_row(row)
+else:
+    for filename in args:
+        if not exists(filename):
+            print 'Specified file does not exist: %s' % filename
+            continue
+
+        # automagically perform gzip uncompression
+        if filename[-3:] == '.gz':
+            gz = gzip.open(filename, 'rb')
+            for row in parser.parse_handle(gz):
+                handle_row(row)
+
+        else:
+            for row in parser.parse_file(filename):
+                handle_row(row)
 
 if options.print_versions:
     keys = version_counts.keys()
