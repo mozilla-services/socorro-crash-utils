@@ -38,7 +38,12 @@
 # ***** END LICENSE BLOCK *****
 
 # This script reads bulk crash dumps (as CSV) from stdin and performs
-# filtering and prints out crash UUIDs.
+# filtering and prints out info.
+#
+# It iterates over all crashes from stdin. Then, it filters the crashes based
+# on arguments. If a crash passes the filter, it moves on to the output stage.
+# By default, it prints crash UUIDs. If a --print-* argument is defined, it
+# skips printing UUIDs and will instead print the thing(s) it was told to.
 
 from breakpad.crashdata import CrashDataParser
 from optparse import OptionParser
@@ -47,23 +52,46 @@ from sys import stdin
 op = OptionParser()
 op.add_option('--signature', '-s', dest='signature', default=None,
               help='Filter crashes by those containing this string in signature')
+op.add_option('--print-versions', dest='print_versions', default=False,
+              action='store_true',
+              help='Print a summary of version counts')
 
 (options, args) = op.parse_args()
 
+print_uuids = True
+
+if options.print_versions:
+    print_uuids = False
+
+version_counts = {}
+
 parser = CrashDataParser()
 for row in parser.parse_handle(stdin):
+    # filter stage
     relevant = True
 
     if options.signature is not None:
         if not row.has_signature(options.signature):
             relevant = False
-            continue
 
-    if relevant:
+    if not relevant:
+        continue
+
+    # data collection
+    version = row.version
+    if version not in version_counts:
+        version_counts[version] = 1
+    else:
+        version_counts[version] += 1
+
+    # individual printing
+    if print_uuids:
         print row.uuid
 
+if options.print_versions:
+    keys = version_counts.keys()
+    keys.sort()
 
-
-
-
+    for k in keys:
+        print '%s\t%s' % ( k, version_counts[k] )
 
