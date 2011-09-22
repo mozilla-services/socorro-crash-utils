@@ -199,11 +199,11 @@ class CrashData(object):
                 # this is handled specially later
                 pass
             elif k == 'duplicate_of':
-                d = None
+                do = None
                 if v != '\\N':
                     # TODO convert to UUID
-                    d = v
-                self.duplicate_of = d
+                    do = v
+                self.duplicate_of = do
 
             elif k == 'flash_version':
                 self.flash_version = v
@@ -269,6 +269,7 @@ class CrashData(object):
             elif k == 'version':
                 self.version = v
             elif k == 'Winsock_LSP':
+                # TODO parse it
                 pass
 
             else:
