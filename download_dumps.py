@@ -42,7 +42,7 @@
 
 from os.path import exists, join
 from sys import argv, stdin
-from breakpad.crashdata import DumpFetcher
+from socorro.crashdata import DumpFetcher
 
 if len(argv) != 2:
     print 'Usage: ./download_dumps.py /path/to/output/directory < file_of_uuids'

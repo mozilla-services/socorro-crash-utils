@@ -50,7 +50,7 @@
 # from the daily crash CSV files. These JSON files were likely obtained from
 # the crash server.
 
-from breakpad.crashdata import CrashDataParser, CrashData
+from socorro.crashdata import CrashDataParser, CrashData
 from optparse import OptionParser
 from os import listdir
 from os.path import exists, join
