@@ -301,8 +301,9 @@ class CrashData(object):
                 # stacks
                 elif mode == 1:
                     frame = line.split('|')
-                    thread = frame[0]
+                    frame = map(lambda s: s.strip(), frame)
 
+                    thread = str(frame[0])
                     frame[1] = int(frame[1])
 
                     if thread not in self.stacks:
