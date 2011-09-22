@@ -44,10 +44,16 @@
 # on arguments. If a crash passes the filter, it moves on to the output stage.
 # By default, it prints crash UUIDs. If a --print-* argument is defined, it
 # skips printing UUIDs and will instead print the thing(s) it was told to.
+#
+# Alternatively, crashes can be read in from a directory containing .json
+# files. These JSON files represent a superset of the crash data available
+# from the daily crash CSV files. These JSON files were likely obtained from
+# the crash server.
 
-from breakpad.crashdata import CrashDataParser
+from breakpad.crashdata import CrashDataParser, CrashData
 from optparse import OptionParser
-from os.path import exists
+from os import listdir
+from os.path import exists, join
 from sys import stdin
 
 import gzip
@@ -55,22 +61,38 @@ import gzip
 op = OptionParser()
 op.add_option('--signature', '-s', dest='signature', default=None,
               help='Filter crashes by those containing this string in signature')
+op.add_option('--json-dir', dest='json_dir', default=None,
+              help='Directory containing .json files for raw crash dumps to read')
 op.add_option('--print-versions', dest='print_versions', default=False,
               action='store_true',
               help='Print a summary of version counts')
+op.add_option('--print-frame-counts', dest='print_frame_counts', default=False,
+              action='store_true',
+              help='Print a count of symols seen in crashed stacks')
+op.add_option('--print-frame-position-counts', dest='print_frame_position_counts',
+              default=False, action='store_true',
+              help='Like --print-frame-counts but groups frames by stack position')
 
 (options, args) = op.parse_args()
 
 read_files = len(args) > 0
-
+read_json = options.json_dir
 print_uuids = True
+
+collect_frames = False
 
 if options.print_versions:
     print_uuids = False
 
-version_counts = {}
+if options.print_frame_counts or options.print_frame_position_counts:
+    print_uuids = False
+    collect_frames = True
 
-def handle_row(row):
+version_counts = {}
+frame_counts = {} # key is tuple so we track different areas of occurence
+frame_symbol_counts = {} # key is symbol name
+
+def handle_crash(row):
     # filter stage
     relevant = True
 
@@ -88,14 +110,43 @@ def handle_row(row):
     else:
         version_counts[version] += 1
 
+    if collect_frames:
+        stack = row.get_crashed_stack()
+
+        if stack:
+            for frame in stack:
+                # TODO need better API for stacks/frames
+                key = (frame[1], frame[2], frame[3])
+
+                if key in frame_counts:
+                    frame_counts[key] += 1
+                else:
+                    frame_counts[key] = 1
+
+                if frame[3] in frame_symbol_counts:
+                    frame_symbol_counts[frame[3]] += 1
+                else:
+                    frame_symbol_counts[frame[3]] = 1
+
     # individual printing
     if print_uuids:
         print row.uuid
 
 parser = CrashDataParser()
-if not read_files:
+if read_json:
+    for p in listdir(read_json):
+        if p[-5:] != '.json':
+            continue
+
+        filename = join(read_json, p)
+        with open(filename, 'rb') as fh:
+            crash = CrashData(json=fh.read())
+
+            handle_crash(crash)
+
+elif not read_files:
     for row in parser.parse_handle(stdin):
-        handle_row(row)
+        handle_crash(row)
 else:
     for filename in args:
         if not exists(filename):
@@ -106,16 +157,23 @@ else:
         if filename[-3:] == '.gz':
             gz = gzip.open(filename, 'rb')
             for row in parser.parse_handle(gz):
-                handle_row(row)
+                handle_crash(row)
 
         else:
             for row in parser.parse_file(filename):
-                handle_row(row)
+                handle_crash(row)
 
 if options.print_versions:
     keys = version_counts.keys()
     keys.sort()
 
     for k in keys:
-        print '%s\t%s' % ( k, version_counts[k] )
+        print '%d\t%s' % ( version_counts[k], k )
 
+if options.print_frame_counts:
+    for k, v in frame_symbol_counts.iteritems():
+        print '%d\t%s' % ( v, k )
+
+if options.print_frame_position_counts:
+    for k, v in frame_counts.iteritems():
+        print '%d\t%d\t%s' % ( v, k[0], k[2] )
