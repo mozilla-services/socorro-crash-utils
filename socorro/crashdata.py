@@ -334,6 +334,20 @@ class CrashData(object):
 
         return self.stacks[thread]
 
+    def has_symbol_in_crashed_stack(self, s):
+        '''Returns whether a specied string appears in the symbols for the
+        crashed stack.'''
+        stack = self.get_crashed_stack()
+
+        if not stack:
+            return False
+
+        for frame in stack:
+            if frame[3].find(s) != -1:
+                return True
+
+        return False
+
 class DumpFetcher(object):
     '''Utility class to fetch dumps from the server.'''
 

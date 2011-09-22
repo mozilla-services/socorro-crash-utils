@@ -54,7 +54,7 @@ from socorro.crashdata import CrashDataParser, CrashData
 from optparse import OptionParser
 from os import listdir
 from os.path import exists, join
-from sys import stdin
+from sys import stdin, stderr
 
 import gzip
 
@@ -63,6 +63,11 @@ op.add_option('--signature', '-s', dest='signature', default=None,
               help='Filter crashes by those containing this string in signature')
 op.add_option('--json-dir', dest='json_dir', default=None,
               help='Directory containing .json files for raw crash dumps to read')
+op.add_option('--ids-on-stdin', dest='ids_on_stdin', default=False,
+              action='store_true',
+              help='When reading from directories or daily dump files, only read UUIDs specified from stdin')
+op.add_option('--filter-stack-symbol', dest='filter_stack_symbol', default=None,
+              help='Filter by the presence of a symbol on the stack. Performs substring matching')
 op.add_option('--print-versions', dest='print_versions', default=False,
               action='store_true',
               help='Print a summary of version counts')
@@ -92,26 +97,27 @@ version_counts = {}
 frame_counts = {} # key is tuple so we track different areas of occurence
 frame_symbol_counts = {} # key is symbol name
 
-def handle_crash(row):
+def handle_crash(crash):
     # filter stage
     relevant = True
 
     if options.signature is not None:
-        if not row.has_signature(options.signature):
-            relevant = False
+        if not crash.has_signature(options.signature):
+            return
 
-    if not relevant:
-        return
+    if options.filter_stack_symbol:
+        if not crash.has_symbol_in_crashed_stack(options.filter_stack_symbol):
+            return
 
     # data collection
-    version = row.version
+    version = crash.version
     if version not in version_counts:
         version_counts[version] = 1
     else:
         version_counts[version] += 1
 
     if collect_frames:
-        stack = row.get_crashed_stack()
+        stack = crash.get_crashed_stack()
 
         if stack:
             for frame in stack:
@@ -130,19 +136,31 @@ def handle_crash(row):
 
     # individual printing
     if print_uuids:
-        print row.uuid
+        print crash.uuid
 
 parser = CrashDataParser()
 if read_json:
-    for p in listdir(read_json):
-        if p[-5:] != '.json':
-            continue
-
-        filename = join(read_json, p)
+    def open_and_handle(filename):
         with open(filename, 'rb') as fh:
             crash = CrashData(json=fh.read())
-
             handle_crash(crash)
+
+    if options.ids_on_stdin:
+        for line in stdin:
+            id = line.strip()
+            filename = join(read_json, '%s.json' % id)
+            if not exists(filename):
+                print >>stderr, 'File not found: %s' % filename
+                continue
+
+            open_and_handle(filename)
+    else:
+        for p in listdir(read_json):
+            if p[-5:] != '.json':
+                continue
+
+            filename = join(read_json, p)
+            open_and_handle(filename)
 
 elif not read_files:
     for row in parser.parse_handle(stdin):
@@ -150,7 +168,7 @@ elif not read_files:
 else:
     for filename in args:
         if not exists(filename):
-            print 'Specified file does not exist: %s' % filename
+            print >>stderr, 'Specified file does not exist: %s' % filename
             continue
 
         # automagically perform gzip uncompression
