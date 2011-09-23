@@ -71,6 +71,9 @@ op.add_option('--filter-stack-symbol', dest='filter_stack_symbol', default=None,
 op.add_option('--print-versions', dest='print_versions', default=False,
               action='store_true',
               help='Print a summary of version counts')
+op.add_option('--print-builds', dest='print_builds', default=False,
+              action='store_true',
+              help='Print a summary of crashes by builds')
 op.add_option('--print-frame-counts', dest='print_frame_counts', default=False,
               action='store_true',
               help='Print a count of symols seen in crashed stacks')
@@ -85,15 +88,21 @@ read_json = options.json_dir
 print_uuids = True
 
 collect_frames = False
+collect_builds = False
 
 if options.print_versions:
     print_uuids = False
+
+if options.print_builds:
+    print_uuids = False
+    collect_builds = True
 
 if options.print_frame_counts or options.print_frame_position_counts:
     print_uuids = False
     collect_frames = True
 
 version_counts = {}
+build_counts = {}
 frame_counts = {} # key is tuple so we track different areas of occurence
 frame_symbol_counts = {} # key is symbol name
 
@@ -115,6 +124,14 @@ def handle_crash(crash):
         version_counts[version] = 1
     else:
         version_counts[version] += 1
+
+    if collect_builds:
+        t = ( crash.version, crash.build_date )
+
+        if t not in build_counts:
+            build_counts[t] = 1
+        else:
+            build_counts[t] += 1
 
     if collect_frames:
         stack = crash.get_crashed_stack()
@@ -187,6 +204,38 @@ if options.print_versions:
 
     for k in keys:
         print '%d\t%s' % ( version_counts[k], k )
+
+if options.print_builds:
+    versions = {}
+    for k, v in build_counts.iteritems():
+        version = k[0]
+        build = k[1]
+        if version not in versions:
+            versions[version] = {}
+
+        key = versions[version]
+
+        if build not in key:
+            key[build] = v
+        else:
+            key[build] += v
+
+    version_keys = versions.keys()
+    version_keys.sort()
+
+    for version in version_keys:
+        d = versions[version]
+
+        dates = d.keys()
+        dates.sort()
+
+        total = 0
+
+        for date in dates:
+            print '%s\t%s\t%s' % ( version.rjust(16), str(date).ljust(20), str(d[date]).rjust(7) )
+            total += d[date]
+
+        print '%s\t%s\t%s' % ( version.rjust(16), 'Total'.ljust(20), str(total).rjust(7) )
 
 if options.print_frame_counts:
     for k, v in frame_symbol_counts.iteritems():
