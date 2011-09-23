@@ -232,10 +232,10 @@ if options.print_builds:
         total = 0
 
         for date in dates:
-            print '%s\t%s\t%s' % ( version.rjust(16), str(date).ljust(20), str(d[date]).rjust(7) )
+            print '%s\t%s\t%s' % ( version.ljust(12), str(date).ljust(20), str(d[date]).rjust(7) )
             total += d[date]
 
-        print '%s\t%s\t%s' % ( version.rjust(16), 'Total'.ljust(20), str(total).rjust(7) )
+        print '%s\t%s\t%s' % ( version.ljust(12), 'Total'.ljust(20), str(total).rjust(7) )
 
 if options.print_frame_counts:
     for k, v in frame_symbol_counts.iteritems():
