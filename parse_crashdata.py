@@ -159,8 +159,11 @@ parser = CrashDataParser()
 if read_json:
     def open_and_handle(filename):
         with open(filename, 'rb') as fh:
-            crash = CrashData(json=fh.read())
-            handle_crash(crash)
+            try:
+                crash = CrashData(json=fh.read())
+                handle_crash(crash)
+            except:
+                print >>stderr, 'Error loading crash data: %s' % filename
 
     if options.ids_on_stdin:
         for line in stdin:
